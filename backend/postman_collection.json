@@ -1,0 +1,18 @@
+{
+  "info": { "name": "AI Finance - Auth", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+  "item": [
+    { "name": "1. Signup", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/api/auth/signup", "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"phone\": \"9876543210\",\n  \"password\": \"Test@1234\"\n}" } }, "auth": { "type": "noauth" } },
+    { "name": "2. Verify OTP (check terminal for OTP)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/api/auth/verify-otp", "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@example.com\",\n  \"otp\": \"123456\"\n}" } }, "auth": { "type": "noauth" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const j = pm.response.json();", "if (j.data && j.data.token) pm.collectionVariables.set('token', j.data.token);"] } }] },
+    { "name": "3. Resend OTP", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/api/auth/resend-otp", "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@example.com\"\n}" } }, "auth": { "type": "noauth" } },
+    { "name": "4. Login", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "url": "{{baseUrl}}/api/auth/login", "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Test@1234\"\n}" } }, "auth": { "type": "noauth" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const j = pm.response.json();", "if (j.data && j.data.token) pm.collectionVariables.set('token', j.data.token);"] } }] },
+    { "name": "5. Get me (protected)", "request": { "method": "GET", "url": "{{baseUrl}}/api/auth/me" } },
+    { "name": "6. Logout (protected)", "request": { "method": "POST", "url": "{{baseUrl}}/api/auth/logout" } }
+  ]
+}
