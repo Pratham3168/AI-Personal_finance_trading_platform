@@ -3,6 +3,9 @@
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+// Money moved into savings/investments is NOT a consumption expense
+const SAVINGS_CATEGORIES = new Set(['savings_investments']);
+
 function monthRange(month) {
   const [y, m] = month.split('-').map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -13,6 +16,18 @@ function previousMonth(month) {
   const [y, m] = month.split('-').map(Number);
   const d = new Date(Date.UTC(y, m - 2, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthsBetween(from, to) {
+  const out = [];
+  for (let m = from; m <= to; m = shiftMonth(m, 1)) out.push(m);
+  return out;
 }
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -35,26 +50,30 @@ function aggregate(rows) {
   const notes = [];
   const income = [];
   const expense = [];
+  const savingsItems = [];
   for (const g of Object.values(groups)) {
     const useMonthly = g.monthlyTotal !== null;
     if (useMonthly && g.dailySum > 0) {
       notes.push(`For ${g.type} "${g.category}" both a monthly total and daily entries exist; the monthly total was used to avoid double counting.`);
     }
     const item = { category: g.category, amount: round2(useMonthly ? g.monthlyTotal : g.dailySum), source: useMonthly ? 'monthly_total' : 'daily_entries' };
-    (g.type === 'income' ? income : expense).push(item);
+    if (g.type === 'income') income.push(item);
+    else if (SAVINGS_CATEGORIES.has(g.category)) savingsItems.push(item);
+    else expense.push(item);
   }
   income.sort((a, b) => b.amount - a.amount);
   expense.sort((a, b) => b.amount - a.amount);
 
   const totalIncome = round2(income.reduce((s, x) => s + x.amount, 0));
   const totalExpenses = round2(expense.reduce((s, x) => s + x.amount, 0));
+  const savingsOutflow = round2(savingsItems.reduce((sum, x) => sum + x.amount, 0));
   const savings = round2(totalIncome - totalExpenses);
 
   // Extra detail from daily expense entries only
   // (skip categories where a monthly total was used, so ignored entries never leak into these stats)
   const monthlyExpenseCats = new Set(expense.filter((e) => e.source === 'monthly_total').map((e) => e.category));
   const dailyExpenses = rows.filter(
-    (r) => r.type === 'expense' && r.entryType === 'daily' && !monthlyExpenseCats.has(r.category)
+    (r) => r.type === 'expense' && r.entryType === 'daily' && !monthlyExpenseCats.has(r.category) && !SAVINGS_CATEGORIES.has(r.category)
   );
   const spendByPaymentMethod = {};
   for (const r of dailyExpenses) {
@@ -70,6 +89,7 @@ function aggregate(rows) {
     totalIncome,
     totalExpenses,
     savings,
+    savingsOutflow,
     savingsRatePct: totalIncome > 0 ? round2((savings / totalIncome) * 100) : null,
     expensesByCategory: expense.map((e) => ({
       ...e,
@@ -86,4 +106,4 @@ function aggregate(rows) {
   };
 }
 
-module.exports = { aggregate, monthRange, previousMonth, currentMonth, round2 };
+module.exports = { aggregate, monthRange, previousMonth, shiftMonth, monthsBetween, currentMonth, round2 };

@@ -6,6 +6,8 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const analysisRoutes = require('./routes/analysisRoutes');
+const investmentRoutes = require('./routes/investmentRoutes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -21,15 +23,10 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }), authRoutes);
 
 app.use('/api/transactions', transactionRoutes);
-
-// with the other route imports at the top
-const analysisRoutes = require('./routes/analysisRoutes');
-
-// next to the app.use('/api/transactions', ...) line, before app.use(notFound)
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/investments', investmentRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
-
 
 module.exports = app;
