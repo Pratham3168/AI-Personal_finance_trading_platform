@@ -22,7 +22,14 @@ app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHea
 
 app.use('/api/transactions', transactionRoutes);
 
+// with the other route imports at the top
+const analysisRoutes = require('./routes/analysisRoutes');
+
+// next to the app.use('/api/transactions', ...) line, before app.use(notFound)
+app.use('/api/analysis', analysisRoutes);
+
 app.use(notFound);
 app.use(errorHandler);
+
 
 module.exports = app;
