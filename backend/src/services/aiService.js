@@ -46,7 +46,7 @@ const isTransient = (err) => [500, 502, 503, 504].includes(err.status);
 // Tries one model up to 3 times (waits 1s, then 2s between tries) when Google is overloaded
 async function callModel(model, payload) {
   let lastErr;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 1; attempt++) {
     try {
       return await getClient().models.generateContent({
         model,
@@ -56,7 +56,7 @@ async function callModel(model, payload) {
     } catch (err) {
       lastErr = err;
       console.error(`Gemini error (${model}, attempt ${attempt}):`, err.status, String(err.message).slice(0, 120));
-      if (!isTransient(err) || attempt === 3) break;
+      if (!isTransient(err) || attempt === 1) break;
       await sleep(attempt * 1000);
     }
   }

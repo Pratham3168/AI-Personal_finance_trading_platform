@@ -8,8 +8,16 @@ import { currentMonth, formatMonth, formatMoney, prettify } from '../utils/forma
 
 const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v)
 const isPercentKey = (k) => /pct|percent|rate|share/i.test(k)
+const isCountKey = (k) => /count/i.test(k)
+
 const fmtValue = (k, v) =>
-  typeof v === 'number' ? (isPercentKey(k) ? `${Math.round(v * 100) / 100}%` : formatMoney(v)) : String(v ?? '—')
+  typeof v === 'number'
+    ? isPercentKey(k)
+      ? `${Math.round(v * 100) / 100}%`
+      : isCountKey(k)
+        ? String(v)
+        : formatMoney(v)
+    : String(v ?? '—')
 
 // Turn an array/object value into table rows: [{ name, ...scalars }]
 function toRows(value) {
@@ -36,7 +44,9 @@ function DataTable({ title, value }) {
               <tr key={i}>
                 {cols.map((c, j) => (
                   <td key={c} className={`px-5 py-2.5 ${j === 0 ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
-                    {j === 0 && typeof r[c] === 'string' ? prettify(r[c]) : fmtValue(c, r[c])}
+                    {j === 0 && typeof r[c] === 'string'
+                      ? prettify(r[c])
+                      : fmtValue(title === 'entryCounts' ? title : c, r[c])}
                   </td>
                 ))}
               </tr>
