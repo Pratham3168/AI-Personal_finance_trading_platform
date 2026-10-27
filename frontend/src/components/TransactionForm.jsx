@@ -5,8 +5,23 @@ import { prettify, today } from '../utils/format'
 
 const empty = () => ({ type: 'expense', entryType: 'daily', amount: '', category: '', date: today(), paymentMethod: '', description: '' })
 
-export default function TransactionForm({ options, onCreated }) {
-  const [form, setForm] = useState(empty())
+const fromTransaction = (t) => ({
+  type: t.type,
+  entryType: t.entryType || 'daily',
+  amount: String(t.amount),
+  category: t.category,
+  date: t.date,
+  paymentMethod: t.paymentMethod || '',
+  description: t.description || '',
+})
+
+/**
+ * Add mode:  <TransactionForm options={...} onSaved={...} />
+ * Edit mode: <TransactionForm key={t.id} initial={t} options={...} onSaved={...} onCancel={...} />
+ */
+export default function TransactionForm({ options, initial, onSaved, onCancel }) {
+  const editing = !!initial
+  const [form, setForm] = useState(editing ? fromTransaction(initial) : empty())
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [success, setSuccess] = useState('')
@@ -42,16 +57,21 @@ export default function TransactionForm({ options, onCreated }) {
       amount: Number(form.amount),
       category: form.category,
       date: form.date,
+      description: form.description.trim(),
     }
-    if (form.description.trim()) payload.description = form.description.trim()
     if (form.paymentMethod) payload.paymentMethod = form.paymentMethod
 
     setLoading(true)
     try {
-      await transactionsApi.create(payload)
-      setSuccess('Entry saved.')
-      setForm((f) => ({ ...empty(), type: f.type, entryType: f.entryType, date: f.date }))
-      onCreated?.()
+      if (editing) {
+        await transactionsApi.update(initial.id, payload)
+        onSaved?.()
+      } else {
+        await transactionsApi.create(payload)
+        setSuccess('Entry saved.')
+        setForm((f) => ({ ...empty(), type: f.type, entryType: f.entryType, date: f.date }))
+        onSaved?.()
+      }
     } catch (err) {
       setErrors(err.fieldErrors || {})
       setFormError(err.message) // includes the 409 "monthly total already exists" message
@@ -62,7 +82,7 @@ export default function TransactionForm({ options, onCreated }) {
 
   return (
     <form onSubmit={onSubmit} noValidate className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Add an entry</h2>
+      <h2 className="text-lg font-semibold text-slate-900">{editing ? 'Edit entry' : 'Add an entry'}</h2>
 
       <div className="mt-4 inline-flex rounded-lg border border-slate-300 p-1">
         {['expense', 'income'].map((t) => (
@@ -114,8 +134,9 @@ export default function TransactionForm({ options, onCreated }) {
             value={form.description} onChange={onChange} error={errors.description} />
         </Field>
 
-        <div className="sm:max-w-[12rem]">
-          <Button type="submit" loading={loading}>Save entry</Button>
+        <div className="flex gap-3 sm:max-w-sm">
+          <Button type="submit" loading={loading}>{editing ? 'Save changes' : 'Save entry'}</Button>
+          {editing && <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>}
         </div>
       </div>
     </form>

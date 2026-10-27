@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import TransactionForm from '../components/TransactionForm'
+import BulkEntryForm from '../components/BulkEntryForm'
 import { Alert, Field, Input, Select } from '../components/ui'
 import { transactionsApi } from '../api/transactions'
 import { formatDate, formatMoney, prettify } from '../utils/format'
@@ -15,6 +16,8 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [mode, setMode] = useState('single') // 'single' | 'bulk'
+  const [editing, setEditing] = useState(null) // transaction being edited
 
   useEffect(() => {
     transactionsApi.categories().then((r) => setOptions(r.data)).catch((e) => setError(e.message))
@@ -42,11 +45,21 @@ export default function Transactions() {
 
   const onCreated = () => (page === 1 ? load() : setPage(1))
 
+  const onEdit = (t) => {
+    setEditing(t)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const onEdited = () => {
+    setEditing(null)
+    load()
+  }
+
   const onDelete = async (id) => {
     if (!window.confirm('Delete this entry? This cannot be undone.')) return
     setDeletingId(id)
     try {
       await transactionsApi.remove(id)
+      if (editing?.id === id) setEditing(null)
       // go back a page if we just deleted the last item on this page
       if (data.transactions.length === 1 && page > 1) setPage(page - 1)
       else load()
@@ -68,7 +81,23 @@ export default function Transactions() {
         </p>
       </div>
 
-      <TransactionForm options={options} onCreated={onCreated} />
+      {editing ? (
+        <TransactionForm key={editing.id} initial={editing} options={options} onSaved={onEdited} onCancel={() => setEditing(null)} />
+      ) : (
+        <div className="space-y-4">
+          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+            {[['single', 'Single entry'], ['bulk', 'Multiple entries']].map(([m, label]) => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${mode === m ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {mode === 'single'
+            ? <TransactionForm options={options} onSaved={onCreated} />
+            : <BulkEntryForm options={options} onSaved={onCreated} />}
+        </div>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 p-5">
@@ -122,7 +151,11 @@ export default function Transactions() {
                     <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold ${t.type === 'income' ? 'text-green-700' : 'text-slate-900'}`}>
                       {t.type === 'income' ? '+' : '−'}{formatMoney(t.amount)}
                     </td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="whitespace-nowrap px-5 py-3 text-right">
+                      <button onClick={() => onEdit(t)}
+                        className="mr-4 text-sm font-medium text-blue-700 hover:text-blue-900">
+                        Edit
+                      </button>
                       <button onClick={() => onDelete(t.id)} disabled={deletingId === t.id}
                         className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
                         {deletingId === t.id ? 'Deleting…' : 'Delete'}

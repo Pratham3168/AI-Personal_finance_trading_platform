@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 const cards = [
   ['/transactions', 'Income & Expenses', 'Record what you earn and spend, and review your entries.'],
   ['/analysis', 'Budget analysis', 'See your monthly summary and get AI-generated spending guidance.'],
+  ['/investments', 'Investments', 'Track your holdings, record buys and sells, and see how much is safe to invest.'],
 ]
 
 export default function Home() {

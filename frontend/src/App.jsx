@@ -7,6 +7,7 @@ import VerifyOtp from './pages/VerifyOtp'
 import Home from './pages/Home'
 import Transactions from './pages/Transactions'
 import Analysis from './pages/Analysis'
+import Investments from './pages/Investments'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/analysis" element={<Analysis />} />
+          <Route path="/investments" element={<Investments />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/home" replace />} />
