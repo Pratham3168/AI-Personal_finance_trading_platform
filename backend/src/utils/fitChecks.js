@@ -145,7 +145,7 @@ function screenStocks(universe, { capacity, holdings }, f = {}) {
     (f.excludeHeld === false || !heldSymbols.has(s.symbol)) &&
     (!f.sector || String(s.sector || '').toLowerCase() === String(f.sector).toLowerCase()) &&
     (!f.size || s.size === f.size) &&
-    (s.volatilityPct != null && s.volatilityPct <= maxVol));
+    (s.volatilityPct == null || s.volatilityPct <= maxVol));
 
   const sorters = {
     name: (a, b) => a.name.localeCompare(b.name),
