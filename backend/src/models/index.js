@@ -3,6 +3,8 @@ const RevokedToken = require('./RevokedToken');
 const Transaction = require('./Transaction');
 const InvestorProfile = require('./InvestorProfile');
 const InvestmentTransaction = require('./InvestmentTransaction');
+const InvestorPreferences = require('./InvestorPreferences');
+const InvestmentCheck = require('./InvestmentCheck');
 
 User.hasMany(Transaction, { foreignKey: 'userId', onDelete: 'CASCADE' });
 Transaction.belongsTo(User, { foreignKey: 'userId' });
@@ -13,4 +15,12 @@ InvestorProfile.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(InvestmentTransaction, { foreignKey: 'userId', onDelete: 'CASCADE' });
 InvestmentTransaction.belongsTo(User, { foreignKey: 'userId' });
 
-module.exports = { User, RevokedToken, Transaction, InvestorProfile, InvestmentTransaction };
+User.hasOne(InvestorPreferences, { foreignKey: 'userId', onDelete: 'CASCADE' });
+InvestorPreferences.belongsTo(User, { foreignKey: 'userId' });
+
+User.hasMany(InvestmentCheck, { foreignKey: 'userId', onDelete: 'CASCADE' });
+InvestmentCheck.belongsTo(User, { foreignKey: 'userId' });
+
+module.exports = {
+  User, RevokedToken, Transaction, InvestorProfile, InvestmentTransaction, InvestorPreferences, InvestmentCheck,
+};

@@ -8,6 +8,8 @@ const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const investmentRoutes = require('./routes/investmentRoutes');
+const discoverRoutes = require('./routes/discoverRoutes');
+// const marketRoutes = require('./routes/marketRoutes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -25,6 +27,8 @@ app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHea
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/investments', investmentRoutes);
+app.use('/api/discover', discoverRoutes);
+// app.use('/api/market', marketRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
