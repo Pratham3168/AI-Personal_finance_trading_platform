@@ -8,6 +8,7 @@ const links = [
   ['/transactions', 'Income & Expenses'],
   ['/analysis', 'Analysis'],
   ['/investments', 'Investments'],
+  ['/discover', 'Discover'],
 ]
 
 export default function AppLayout() {
