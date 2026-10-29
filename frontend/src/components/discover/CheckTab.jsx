@@ -41,6 +41,32 @@ const badge = {
   fail: ['Over limit', 'bg-red-50 text-red-800'],
 }
 
+function Explanation({ value }) {
+  if (!isObj(value)) return <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{String(value || '')}</p>
+
+  const sections = [
+    ['Within your limits', value.withinYourLimits],
+    ['Outside your limits', value.outsideYourLimits],
+    ['Facts to know', value.factsToKnow],
+    ['Things to consider', value.thingsToConsider],
+    ['Data caveats', value.dataCaveats],
+  ].filter(([, items]) => Array.isArray(items) && items.length)
+
+  return (
+    <div className="mt-2 space-y-3 text-sm text-slate-700">
+      {value.summary && <p>{value.summary}</p>}
+      {sections.map(([title, items]) => (
+        <div key={title}>
+          <p className="font-medium text-slate-900">{title}</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {items.map((item, index) => <li key={index}>{String(item)}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function CheckResult({ d }) {
   const cap = d.capacity
   const facts = d.stock ?? d.ipo ?? d.facts ?? d.subject
@@ -87,7 +113,7 @@ export function CheckResult({ d }) {
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="font-semibold text-slate-900">Explanation</h3>
         {d.aiExplanation ? (
-          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{d.aiExplanation}</p>
+          <Explanation value={d.aiExplanation} />
         ) : (
           <p className="mt-2 text-sm text-slate-500">
             A written explanation isn’t available right now. The checks above are still based on your numbers.

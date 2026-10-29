@@ -12,9 +12,6 @@
  */
 
 const https = require('https');
-let universeCache = null;
-let universeCacheExpiresAt = 0;
-const UNIVERSE_CACHE_MS = 10 * 60 * 1000;
 
 const BASE = (process.env.INDIAN_API_BASE_URL || 'https://stock.indianapi.in').replace(/\/$/, '');
 const KEY = () => {
@@ -23,6 +20,9 @@ const KEY = () => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 const num = (v) => parseFloat(v) || null;
+let universeCache = null;
+let universeCacheExpiresAt = 0;
+const UNIVERSE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function get(path) {
   return new Promise((resolve, reject) => {
@@ -59,8 +59,7 @@ function calcVolatility(high52, low52) {
 
 // Size bucket from market cap (crores)
 function sizeFromCap(capCr) {
-  const c = num(capCr);
-  if (!c) return 'unknown';
+  const c = num(capCr) || 0;
   return c > 20000 ? 'large' : c > 5000 ? 'mid' : 'small';
 }
 
@@ -70,8 +69,8 @@ function fromNseActive(d) {
   if (!d || typeof d !== 'object') return null;
   const price = num(d.price);
   if (!price) return null;
-  const high52 = null;
-  const low52  = null;
+  const high52 = num(d.high) || null;
+  const low52  = num(d.low) || null;
   return {
     symbol: String(d.ticker || '').toUpperCase(),
     name: d.company || d.ticker || 'Unknown',
@@ -99,8 +98,8 @@ function fromTrending(d) {
   if (!d || typeof d !== 'object') return null;
   const price = num(d.price);
   if (!price) return null;
-  const high52 =  null;
-  const low52  = null;
+  const high52 = num(d.high) || null;
+  const low52  = num(d.low) || null;
   return {
     symbol: String(d.ticker_id || d.symbol || '').toUpperCase(),
     name: d.company_name || d.company || d.ticker_id || 'Unknown',
@@ -126,18 +125,16 @@ function fromTrending(d) {
 // { companyName, currentPrice, stockTechnicalData:{...}, stockMetaData:{...}, ... }
 function fromStockDetail(d, fallbackSymbol) {
   if (!d || typeof d !== 'object') return null;
-
-  const currentPriceValue =
-    typeof d.currentPrice === 'object' && d.currentPrice !== null
-      ? (d.currentPrice.NSE || d.currentPrice.BSE)
-      : d.currentPrice;
-  if (!d || typeof d !== 'object') return null;
-  const price = num(currentPriceValue || d.price || d.lastPrice || d.close);
-  if (!price) return null;
   const meta = d.stockMetaData || d.metadata || {};
-  const tech = d.stockTechnicalData || d.technicals || {};
-  const high52 = num(d.yearHigh || d['52WeekHigh']);
-  const low52 = num(d.yearLow || d['52WeekLow']);
+  const reusable = d.stockDetailsReusableData || {};
+  const rawPrice = d.currentPrice || d.price || d.lastPrice || d.close || reusable.price;
+  const price = typeof rawPrice === 'object'
+    ? num(rawPrice.NSE || rawPrice.nse || rawPrice.BSE || rawPrice.bse)
+    : num(rawPrice);
+  if (!price) return null;
+  const tech = Array.isArray(d.stockTechnicalData) ? {} : (d.stockTechnicalData || d.technicals || {});
+  const high52 = num(d['52WeekHigh'] || d.yearHigh || d.high52Week || reusable.yhigh || tech['52WeekHigh']) || null;
+  const low52  = num(d['52WeekLow'] || d.yearLow || d.low52Week || reusable.ylow || tech['52WeekLow']) || null;
   let vol = num(d.volatility || d.annualisedVolatility) || null;
   if (!vol) vol = calcVolatility(high52, low52);
   const sector = d.sector || d.industry || meta.sector || meta.industry || meta.industryName || null;
@@ -146,14 +143,14 @@ function fromStockDetail(d, fallbackSymbol) {
     name: d.companyName || d.name || meta.companyName || fallbackSymbol,
     exchange: String(d.exchange || 'NSE').toUpperCase().includes('BSE') ? 'BSE' : 'NSE',
     sector,
-    size: sizeFromCap(d.marketCap || meta.marketCap),
+    size: sizeFromCap(d.marketCap || reusable.marketCap || meta.marketCap),
     price,
     priceAsOf: today(),
     high52w: high52,
     low52w: low52,
     volatilityPct: vol,
-    change5dPct: num(d.change5d || d.fiveDayChange) || null,
-    changeDayPct: num(d.percentChange || d.change) || null,
+    change5dPct: num(d.change5d || d.fiveDayChange || reusable.price5DayPercentChange) || null,
+    changeDayPct: num(d.percentChange || d.change || reusable.percentChange) || null,
     sectorChange5dPct: null,
     niftyChange5dPct: null,
     pe: num(d.pe || d.peRatio || tech.pe) || null,
@@ -197,9 +194,10 @@ function ipoToShape(d) {
 // ============ public interface ============
 
 exports.searchStocks = async (query) => {
+  const clean = String(query).replace(/\.(NS|BO|BSE|NSE)$/i, '').trim();
   try {
-    const d = await get(`/stock?name=${encodeURIComponent(query)}`);
-    const f = fromStockDetail(d, query);
+    const d = await get(`/stock?name=${encodeURIComponent(clean)}`);
+    const f = fromStockDetail(d, clean);
     return f ? [{ symbol: f.symbol, name: f.name, exchange: f.exchange, sector: f.sector }] : [];
   } catch (e) {
     console.error('indianapi searchStocks error:', e.message);
@@ -208,15 +206,42 @@ exports.searchStocks = async (query) => {
 };
 
 exports.getStockFacts = async (symbol) => {
+  const clean = String(symbol).replace(/\.(NS|BO|BSE|NSE)$/i, '').trim();
+
+  // Warm the cache if empty so name lookup works even on a direct /check call (e.g. from Postman)
+  if (!universeCache || Date.now() >= universeCacheExpiresAt) {
+    try { await exports.getUniverseFacts(); } catch (e) { /* ignore, fall through to direct lookup */ }
+  }
+
+  // Step 1: find company name from cache (BRTI.NS -> "Bharti Airtel" -> /stock?name=Bharti Airtel)
+  if (universeCache) {
+    const cached = universeCache.find(
+      (s) => s.symbol === String(symbol).toUpperCase() ||
+              s.symbol === clean.toUpperCase() ||
+              String(s.name).toLowerCase() === clean.toLowerCase()
+    );
+    if (cached) {
+      try {
+        const d = await get(`/stock?name=${encodeURIComponent(cached.name)}`);
+        const f = fromStockDetail(d, cached.symbol);
+        if (f && f.price) return f;
+      } catch (e) { if (e.status >= 500) throw e; }
+    }
+  }
+
+  // Step 2: try clean ticker (BRTI)
+  try {
+    const d = await get(`/stock?name=${encodeURIComponent(clean)}`);
+    const f = fromStockDetail(d, clean);
+    if (f && f.price) return f;
+  } catch (e) { if (e.status >= 500) throw e; }
+
+  // Step 3: try original as-is (handles full company names like "Bharti Airtel")
   const d = await get(`/stock?name=${encodeURIComponent(symbol)}`);
   return fromStockDetail(d, symbol);
 };
 
 exports.getUniverseFacts = async () => {
-  const now = Date.now();
-  if (universeCache && now < universeCacheExpiresAt) {
-    return universeCache;
-  }
   const [trending, nseActive] = await Promise.allSettled([
     get('/trending'),
     get('/NSE_most_active'),
@@ -247,9 +272,10 @@ exports.getUniverseFacts = async () => {
     const existing = map.get(f.symbol);
     if (!existing || (f.pe && !existing.pe)) map.set(f.symbol, f);
   }
-  universeCache = [...map.values()];
-  universeCacheExpiresAt = Date.now() + UNIVERSE_CACHE_MS;
-  return universeCache;
+  const universe = [...map.values()];
+  universeCache = universe;
+  universeCacheExpiresAt = Date.now() + UNIVERSE_CACHE_TTL_MS;
+  return universe;
 };
 
 exports.listIpos = async () => {

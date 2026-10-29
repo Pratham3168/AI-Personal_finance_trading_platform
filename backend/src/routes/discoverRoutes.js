@@ -5,7 +5,7 @@ const protect = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const c = require('../controllers/discoverController');
 
-const SYMBOL_RE = /^[A-Z0-9&.\-]{1,20}$/;
+const SYMBOL_RE = /^[A-Z0-9&.\- ]{1,60}$/i;
 const isStock = (v, { req }) => req.body.kind === 'stock';
 const isIpo = (v, { req }) => req.body.kind === 'ipo';
 
