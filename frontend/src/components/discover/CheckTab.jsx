@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Field, Input, Select } from '../ui'
 import { discoverApi } from '../../api/discover'
+import { CircleCheck, Info, TriangleAlert } from 'lucide-react'
 import { prettify } from '../../utils/format'
+import { toList, toText } from '../../utils/text'
 import { Group } from '../investments/shared'
 import { findList, flatten, fmtAny, isObj, pick } from './helpers'
 
@@ -41,28 +43,47 @@ const badge = {
   fail: ['Over limit', 'bg-red-50 text-red-800'],
 }
 
-function Explanation({ value }) {
-  if (!isObj(value)) return <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{String(value || '')}</p>
+// The backend sends the explanation as an object: { summary, withinYourLimits, outsideYourLimits,
+// factsToKnow, thingsToConsider, dataCaveats }. A plain string is also handled.
+const EXPLAIN_SECTIONS = [
+  ['withinYourLimits', 'Within your limits', CircleCheck, 'text-positive'],
+  ['outsideYourLimits', 'Outside your limits', TriangleAlert, 'text-warning'],
+  ['factsToKnow', 'Facts to know', Info, 'text-accent-text'],
+  ['thingsToConsider', 'Things to consider', Info, 'text-accent-text'],
+  ['dataCaveats', 'Data caveats', Info, 'text-subtle'],
+]
 
-  const sections = [
-    ['Within your limits', value.withinYourLimits],
-    ['Outside your limits', value.outsideYourLimits],
-    ['Facts to know', value.factsToKnow],
-    ['Things to consider', value.thingsToConsider],
-    ['Data caveats', value.dataCaveats],
-  ].filter(([, items]) => Array.isArray(items) && items.length)
+function ExplanationView({ ex }) {
+  if (typeof ex === 'string') return <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{ex}</p>
+  if (!isObj(ex)) return null
+  const known = new Set(['summary', ...EXPLAIN_SECTIONS.map((s) => s[0])])
+  const extra = Object.keys(ex)
+    .filter((k) => !known.has(k))
+    .map((k) => [k, prettify(k), Info, 'text-accent-text'])
+  const sections = [...EXPLAIN_SECTIONS, ...extra]
 
   return (
-    <div className="mt-2 space-y-3 text-sm text-slate-700">
-      {value.summary && <p>{value.summary}</p>}
-      {sections.map(([title, items]) => (
-        <div key={title}>
-          <p className="font-medium text-slate-900">{title}</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            {items.map((item, index) => <li key={index}>{String(item)}</li>)}
-          </ul>
-        </div>
-      ))}
+    <div className="mt-3 space-y-5">
+      {ex.summary && <p className="text-base leading-relaxed text-slate-800">{toText(ex.summary)}</p>}
+      <div className="grid gap-4 md:grid-cols-2">
+        {sections.map(([key, title, Icon, tone]) => {
+          const items = toList(ex[key])
+          if (!items.length) return null
+          return (
+            <div key={key} className="rounded-xl border border-slate-200 p-4">
+              <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+              <ul className="mt-2 space-y-2 text-sm text-slate-700">
+                {items.map((t, i) => (
+                  <li key={i} className="flex gap-2">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} aria-hidden />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -113,7 +134,7 @@ export function CheckResult({ d }) {
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="font-semibold text-slate-900">Explanation</h3>
         {d.aiExplanation ? (
-          <Explanation value={d.aiExplanation} />
+          <ExplanationView ex={d.aiExplanation} />
         ) : (
           <p className="mt-2 text-sm text-slate-500">
             A written explanation isn’t available right now. The checks above are still based on your numbers.
@@ -121,7 +142,7 @@ export function CheckResult({ d }) {
         )}
       </div>
 
-      <p className="text-xs text-slate-500">{d.disclaimer || 'For information only. This is not investment advice.'}</p>
+      <p className="text-xs text-slate-500">{toText(d.disclaimer) || 'For information only. This is not investment advice.'}</p>
     </div>
   )
 }

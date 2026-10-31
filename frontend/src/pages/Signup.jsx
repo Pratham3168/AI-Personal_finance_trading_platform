@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CircleCheck } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout'
+import PasswordStrength, { PASSWORD_RULES } from '../components/auth/PasswordStrength'
 import { Alert, Button, Field, Input, PasswordInput } from '../components/ui'
 import { authApi } from '../api/auth'
 
-const rules = [
-  ['At least 8 characters', (p) => p.length >= 8],
-  ['One lowercase letter', (p) => /[a-z]/.test(p)],
-  ['One uppercase letter', (p) => /[A-Z]/.test(p)],
-  ['One number', (p) => /\d/.test(p)],
-]
+const sectionLabel = 'mb-4 text-xs font-semibold uppercase tracking-wider text-subtle'
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -19,7 +16,12 @@ export default function Signup() {
   const [existing, setExisting] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
+  const onChange = (e) => {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: value }))
+    // an error is stale as soon as the user edits that field
+    setErrors((prev) => ({ ...prev, [name]: undefined, ...(name === 'password' ? { confirm: undefined } : {}) }))
+  }
 
   const validate = () => {
     const e = {}
@@ -27,7 +29,7 @@ export default function Signup() {
     if (name.length < 2 || name.length > 100) e.fullName = 'Enter your full name (2–100 characters).'
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = 'Enter a valid email address.'
     if (!/^\+?\d{10,15}$/.test(form.phone.trim())) e.phone = 'Enter a phone number with 10–15 digits.'
-    if (!rules.every(([, test]) => test(form.password))) e.password = 'Password does not meet all requirements.'
+    if (!PASSWORD_RULES.every(([, test]) => test(form.password))) e.password = 'Password does not meet all requirements.'
     if (form.confirm !== form.password) e.confirm = 'Passwords do not match.'
     return e
   }
@@ -50,7 +52,7 @@ export default function Signup() {
         password: form.password,
       })
       navigate('/verify-otp', {
-        state: { email, message: 'Account created. We sent a 6-digit code to your email.' },
+        state: { email, message: 'Account created successfully.' },
       })
     } catch (err) {
       if (err.status === 409) setExisting(true)
@@ -61,20 +63,23 @@ export default function Signup() {
     }
   }
 
+  const passwordsMatch = form.confirm.length > 0 && form.confirm === form.password
+
   return (
     <AuthLayout
+      wide
       title="Create your account"
       subtitle="It takes less than a minute. We’ll verify your email next."
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-blue-700 hover:text-blue-800">
+          <Link to="/login" className="font-semibold text-accent-text hover:underline">
             Sign in
           </Link>
         </>
       }
     >
-      <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <form onSubmit={onSubmit} noValidate className="space-y-7">
         {formError && (
           <Alert>
             {formError}
@@ -89,47 +94,41 @@ export default function Signup() {
           </Alert>
         )}
 
-        <Field label="Full name" htmlFor="fullName" error={errors.fullName}>
-          <Input id="fullName" name="fullName" autoComplete="name" placeholder="Your full name"
-            value={form.fullName} onChange={onChange} error={errors.fullName} />
-        </Field>
+        <fieldset className="min-w-0 space-y-5">
+          <legend className={sectionLabel}>Your details</legend>
+          <Field label="Full name" htmlFor="fullName" error={errors.fullName}>
+            <Input id="fullName" name="fullName" autoComplete="name" placeholder="Your full name"
+              value={form.fullName} onChange={onChange} error={errors.fullName} />
+          </Field>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Email address" htmlFor="email" error={errors.email}>
+              <Input id="email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com"
+                value={form.email} onChange={onChange} error={errors.email} />
+            </Field>
+            <Field label="Phone number" htmlFor="phone" error={errors.phone} hint="10–15 digits, optional + prefix.">
+              <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="9876543210"
+                value={form.phone} onChange={onChange} error={errors.phone} />
+            </Field>
+          </div>
+        </fieldset>
 
-        <Field label="Email address" htmlFor="email" error={errors.email}>
-          <Input id="email" name="email" type="email" autoComplete="email" placeholder="you@example.com"
-            value={form.email} onChange={onChange} error={errors.email} />
-        </Field>
-
-        <Field label="Phone number" htmlFor="phone" error={errors.phone} hint="10–15 digits, optional + prefix.">
-          <Input id="phone" name="phone" type="tel" autoComplete="tel" placeholder="9876543210"
-            value={form.phone} onChange={onChange} error={errors.phone} />
-        </Field>
-
-        <Field label="Password" htmlFor="password" error={errors.password}>
-          <PasswordInput id="password" name="password" autoComplete="new-password" placeholder="Create a password"
-            value={form.password} onChange={onChange} error={errors.password} />
-          <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-            {rules.map(([label, test]) => {
-              const ok = test(form.password)
-              return (
-                <li key={label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-green-700' : 'text-slate-500'}`}>
-                  <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor">
-                    {ok ? (
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z" clipRule="evenodd" />
-                    ) : (
-                      <circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                    )}
-                  </svg>
-                  {label}
-                </li>
-              )
-            })}
-          </ul>
-        </Field>
-
-        <Field label="Confirm password" htmlFor="confirm" error={errors.confirm}>
-          <PasswordInput id="confirm" name="confirm" autoComplete="new-password" placeholder="Re-enter your password"
-            value={form.confirm} onChange={onChange} error={errors.confirm} />
-        </Field>
+        <fieldset className="min-w-0 space-y-5">
+          <legend className={sectionLabel}>Secure your account</legend>
+          <Field label="Password" htmlFor="password" error={errors.password}>
+            <PasswordInput id="password" name="password" autoComplete="new-password" placeholder="Create a password"
+              value={form.password} onChange={onChange} error={errors.password} />
+            <PasswordStrength password={form.password} />
+          </Field>
+          <Field label="Confirm password" htmlFor="confirm" error={errors.confirm}>
+            <PasswordInput id="confirm" name="confirm" autoComplete="new-password" placeholder="Re-enter your password"
+              value={form.confirm} onChange={onChange} error={errors.confirm} />
+            {passwordsMatch && !errors.confirm && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-sm text-positive">
+                <CircleCheck className="h-4 w-4" aria-hidden /> Passwords match
+              </p>
+            )}
+          </Field>
+        </fieldset>
 
         <Button type="submit" loading={loading}>
           Create account

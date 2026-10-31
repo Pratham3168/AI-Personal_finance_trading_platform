@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Alert, Field, Input } from '../ui'
 import { investmentsApi } from '../../api/investments'
 import { currentMonth, formatMoney, formatMonth } from '../../utils/format'
+import { toText } from '../../utils/text'
 import { Group, Stat, fmtPct, gainTone, signedMoney } from './shared'
 
 export default function SummaryTab({ profile }) {
@@ -116,7 +117,7 @@ export default function SummaryTab({ profile }) {
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="font-semibold text-slate-900">Notes</h3>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                {s.notes.map((n, i) => <li key={i}>{n}</li>)}
+                {s.notes.map((n, i) => <li key={i}>{toText(n)}</li>)}
               </ul>
             </div>
           )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Alert } from '../ui'
 import { investmentsApi } from '../../api/investments'
 import { formatMoney } from '../../utils/format'
+import { toText } from '../../utils/text'
 import { Empty, Stat, fmtPct, fmtQty, gainTone, signedMoney } from './shared'
 
 const th = 'px-5 py-3 font-medium'
@@ -26,7 +27,7 @@ export default function HoldingsTab({ goToLedger }) {
       {ledgerProblems.length > 0 && (
         <Alert>
           <p className="font-semibold">Some ledger entries need attention:</p>
-          <ul className="mt-1 list-disc pl-5">{ledgerProblems.map((p, i) => <li key={i}>{p}</li>)}</ul>
+          <ul className="mt-1 list-disc pl-5">{ledgerProblems.map((p, i) => <li key={i}>{toText(p)}</li>)}</ul>
         </Alert>
       )}
 

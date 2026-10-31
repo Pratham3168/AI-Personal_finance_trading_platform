@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
-import { Alert, Button, Field, Input } from '../components/ui'
+import OtpInput from '../components/auth/OtpInput'
+import { Alert, Button } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { authApi } from '../api/auth'
 
@@ -12,6 +13,7 @@ export default function VerifyOtp() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const email = state?.email
+  const verifyRef = useRef(null)
 
   const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
@@ -56,6 +58,7 @@ export default function VerifyOtp() {
       await authApi.resendOtp(email)
       setInfo('If your account is awaiting verification, a new code has been sent.')
       setCooldown(COOLDOWN)
+      setOtp('')
     } catch (err) {
       setError(err.message)
       if (err.status === 429) setCooldown(COOLDOWN)
@@ -66,43 +69,51 @@ export default function VerifyOtp() {
 
   return (
     <AuthLayout
-      title="Verify your email"
+      title="Check your email"
       subtitle={
         <>
-          Enter the 6-digit code we sent to <span className="font-medium text-slate-900">{email}</span>. The code
-          expires in 10 minutes.
+          We sent a 6-digit code to <span className="font-medium text-fg">{email}</span>. It expires in 10 minutes.
         </>
       }
       footer={
-        <Link to="/login" className="font-semibold text-blue-700 hover:text-blue-800">
-          Back to sign in
-        </Link>
+        <>
+          Wrong email?{' '}
+          <Link to="/signup" className="font-semibold text-accent-text hover:underline">
+            Start over
+          </Link>
+          <span className="mx-2 text-subtle" aria-hidden>·</span>
+          <Link to="/login" className="font-semibold text-accent-text hover:underline">
+            Back to sign in
+          </Link>
+        </>
       }
     >
-      <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <form onSubmit={onSubmit} noValidate className="space-y-6">
         {info && <Alert type="info">{info}</Alert>}
         {error && <Alert>{error}</Alert>}
 
-        <Field label="Verification code" htmlFor="otp">
-          <Input
-            id="otp"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="000000"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-            className="text-center text-lg tracking-[0.5em]"
-          />
-        </Field>
+        <OtpInput
+          value={otp}
+          onChange={(v) => {
+            setOtp(v)
+            if (error) setError('')
+          }}
+          onComplete={() => verifyRef.current?.focus()}
+          error={!!error}
+          disabled={loading}
+          autoFocus
+        />
 
-        <Button type="submit" loading={loading}>
-          Verify and continue
-        </Button>
+        <div className="space-y-3">
+          <Button ref={verifyRef} type="submit" loading={loading}>
+            Verify and continue
+          </Button>
+          <Button type="button" variant="secondary" onClick={onResend} loading={resending} disabled={cooldown > 0}>
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+          </Button>
+        </div>
 
-        <Button type="button" variant="secondary" onClick={onResend} loading={resending} disabled={cooldown > 0}>
-          {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-        </Button>
+        <p className="text-center text-xs text-subtle">Can’t find it? Check your spam or junk folder.</p>
       </form>
     </AuthLayout>
   )

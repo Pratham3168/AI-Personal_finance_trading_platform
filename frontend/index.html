@@ -1,10 +1,41 @@
-<!doctype html>
+<!-- <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Secure personal budgeting and money tracking." />
     <title>BudgetWise</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html> -->
+
+
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Secure personal budgeting and money tracking." />
+    <meta name="theme-color" content="#eef4fb" />
+    <title>BudgetWise</title>
+    <script>
+      // Apply the saved theme before first paint so there is no flash.
+      // Keep DEFAULT in sync with DEFAULT_THEME in src/context/ThemeContext.jsx.
+      (function () {
+        var DEFAULT = 'light';
+        try {
+          var t = localStorage.getItem('bw_theme') || DEFAULT;
+          var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var el = document.documentElement;
+          if (dark) el.classList.add('dark');
+          el.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

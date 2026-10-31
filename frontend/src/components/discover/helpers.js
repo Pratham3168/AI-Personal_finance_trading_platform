@@ -1,4 +1,5 @@
 import { formatDate, formatMoney, prettify } from '../../utils/format'
+import { fmtCount, isCountKey } from '../../utils/text'
 
 export const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v)
 export const pick = (o, keys) => keys.map((k) => o[k]).find((v) => v !== undefined && v !== null)
@@ -6,10 +7,11 @@ export const pick = (o, keys) => keys.map((k) => o[k]).find((v) => v !== undefin
 // The backend returns a list under some key; find it whatever the wrapper is called
 export const findList = (d) => (Array.isArray(d) ? d : Object.values(d || {}).find(Array.isArray) || [])
 
-export function fmtAny(key, v) {
+export function fmtAny(key, v, ctx = '') {
   if (v == null) return '—'
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
   if (typeof v === 'number') {
+    if (isCountKey(key) || isCountKey(ctx)) return fmtCount(v)
     if (/pct|percent|rate/i.test(key)) return `${Math.round(v * 100) / 100}%`
     if (/shares|lots|quantity|count|years|months/i.test(key)) return new Intl.NumberFormat('en-IN').format(v)
     return formatMoney(v)
@@ -24,7 +26,7 @@ export function flatten(obj, fmt = fmtAny) {
   Object.entries(obj || {}).forEach(([k, v]) => {
     if (isObj(v)) {
       Object.entries(v).forEach(([k2, v2]) => {
-        if (!isObj(v2) && !Array.isArray(v2)) rows.push([`${prettify(k)} – ${prettify(k2)}`, fmt(k2, v2)])
+        if (!isObj(v2) && !Array.isArray(v2)) rows.push([`${prettify(k)} – ${prettify(k2)}`, fmt(k2, v2, k)])
       })
     } else if (Array.isArray(v)) {
       if (v.every((x) => !isObj(x))) rows.push([prettify(k), v.join(', ') || '—'])

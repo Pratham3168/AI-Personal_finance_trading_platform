@@ -5,6 +5,7 @@ import { discoverApi } from '../../api/discover'
 import { formatDate, formatMoney, prettify } from '../../utils/format'
 import { Empty, Stat } from '../investments/shared'
 import { flatten, isObj } from './helpers'
+import { toText } from '../../utils/text'
 
 const STATUSES = ['active', 'open', 'upcoming', 'closed', 'listed', 'all']
 const money = (v) => (v == null ? '—' : formatMoney(v))
@@ -70,8 +71,8 @@ export default function IposTab({ onCheck }) {
                   <div key={ipo.id ?? i} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold text-slate-900">{ipo.name}</h3>
-                        <p className="text-sm text-slate-500">{[ipo.industry, ipo.type && prettify(ipo.type)].filter(Boolean).join(' · ') || ' '}</p>
+                        <h3 className="font-semibold text-slate-900">{toText(ipo.name)}</h3>
+                        <p className="text-sm text-slate-500">{[toText(ipo.industry), ipo.type && prettify(toText(ipo.type))].filter(Boolean).join(' · ') || ' '}</p>
                       </div>
                       {ipo.status && (
                         <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{prettify(ipo.status)}</span>

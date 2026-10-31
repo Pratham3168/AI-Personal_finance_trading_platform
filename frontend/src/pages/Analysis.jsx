@@ -2,22 +2,21 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, Button, Field, Input } from '../components/ui'
 import { analysisApi } from '../api/analysis'
+import { fmtCount, isCountKey, toText } from '../utils/text'
 import { currentMonth, formatMonth, formatMoney, prettify } from '../utils/format'
 
 /* ---------- generic, defensive rendering of the backend summary ---------- */
 
 const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v)
 const isPercentKey = (k) => /pct|percent|rate|share/i.test(k)
-const isCountKey = (k) => /count/i.test(k)
-
-const fmtValue = (k, v) =>
-  typeof v === 'number'
-    ? isPercentKey(k)
-      ? `${Math.round(v * 100) / 100}%`
-      : isCountKey(k)
-        ? String(v)
-        : formatMoney(v)
-    : String(v ?? '—')
+// ctx = the name of the table/group the value sits in (e.g. "entryCounts"), so rows like
+// { name: 'daily', value: 1 } inside a count table are not shown as money.
+const fmtValue = (k, v, ctx = '') => {
+  if (typeof v !== 'number') return String(v ?? '—')
+  if (isCountKey(k) || isCountKey(ctx)) return fmtCount(v)
+  if (isPercentKey(k)) return `${Math.round(v * 100) / 100}%`
+  return formatMoney(v)
+}
 
 // Turn an array/object value into table rows: [{ name, ...scalars }]
 function toRows(value) {
@@ -44,9 +43,7 @@ function DataTable({ title, value }) {
               <tr key={i}>
                 {cols.map((c, j) => (
                   <td key={c} className={`px-5 py-2.5 ${j === 0 ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
-                    {j === 0 && typeof r[c] === 'string'
-                      ? prettify(r[c])
-                      : fmtValue(title === 'entryCounts' ? title : c, r[c])}
+                    {j === 0 && typeof r[c] === 'string' ? prettify(r[c]) : fmtValue(c, r[c], title)}
                   </td>
                 ))}
               </tr>
@@ -112,7 +109,7 @@ function Bullets({ title, items }) {
     <div>
       <h4 className="font-semibold text-slate-900">{title}</h4>
       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-slate-700">
-        {items.map((t, i) => <li key={i}>{typeof t === 'string' ? t : JSON.stringify(t)}</li>)}
+        {items.map((t, i) => <li key={i}>{toText(t)}</li>)}
       </ul>
     </div>
   )
@@ -121,18 +118,18 @@ function Bullets({ title, items }) {
 function AiView({ analysis }) {
   if (analysis?.raw) {
     // Backend couldn't parse the model's JSON, so show the text as-is
-    return <p className="whitespace-pre-wrap text-sm text-slate-700">{analysis.raw}</p>
+    return <p className="whitespace-pre-wrap text-sm text-slate-700">{toText(analysis.raw)}</p>
   }
   const h = analysis?.financialHealth
   const over = Array.isArray(analysis?.overspendingAreas) ? analysis.overspendingAreas : []
   return (
     <div className="space-y-6">
-      {analysis?.overview && <p className="text-slate-700">{analysis.overview}</p>}
+      {analysis?.overview && <p className="text-slate-700">{toText(analysis.overview)}</p>}
 
       {h && (
         <div className={`rounded-lg border p-4 ${ratingStyle[h.rating] || 'border-slate-200 bg-slate-50 text-slate-800'}`}>
-          <p className="text-sm font-semibold">Financial health: {prettify(h.rating || 'unknown')}</p>
-          {h.reason && <p className="mt-1 text-sm">{h.reason}</p>}
+          <p className="text-sm font-semibold">Financial health: {prettify(toText(h.rating) || 'unknown')}</p>
+          {h.reason && <p className="mt-1 text-sm">{toText(h.reason)}</p>}
         </div>
       )}
 
@@ -145,7 +142,7 @@ function AiView({ analysis }) {
             {over.map((o, i) => (
               <li key={i} className="rounded-lg border border-slate-200 p-3">
                 <span className="font-medium text-slate-900">{prettify(o.category || 'Category')}</span>
-                {o.observation && <span> — {o.observation}</span>}
+                {o.observation && <span> — {toText(o.observation)}</span>}
               </li>
             ))}
           </ul>
@@ -156,7 +153,7 @@ function AiView({ analysis }) {
 
       {analysis?.savingsTip && (
         <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
-          <span className="font-semibold text-slate-900">Savings tip: </span>{analysis.savingsTip}
+          <span className="font-semibold text-slate-900">Savings tip: </span>{toText(analysis.savingsTip)}
         </div>
       )}
     </div>

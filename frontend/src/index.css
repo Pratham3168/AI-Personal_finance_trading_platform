@@ -1,9 +1,233 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/* ------------------------------------------------------------------
+   Design tokens. Every colour in the UI comes from these variables, so
+   a component written once works in both themes.
+   Palette: blue → cyan accent, deep-navy dark theme.
+------------------------------------------------------------------- */
+:root,
+.force-light {
+  color-scheme: light;
+  --bg: #eef4fb;
+  --fg: #0a1a33;          /* primary text */
+  --fg-muted: #475a76;    /* secondary text */
+  --fg-subtle: #5f7391;   /* tertiary: timestamps, metadata */
+  --border: rgba(10, 40, 90, 0.1);
+  --border-strong: rgba(10, 40, 90, 0.2);
+
+  --accent: #1d4ed8;
+  --accent-2: #0e7490;
+  --on-accent: #ffffff;
+  --accent-text: #1d4ed8;
+  --ring: #2563eb;
+
+  --positive: #047857;
+  --negative: #be123c;
+  --warning: #b45309;
+  --info: #1d4ed8;
+
+  --field-bg: rgba(255, 255, 255, 0.78);
+  --surface-solid: #ffffff;
+  --surface-hero: rgba(255, 255, 255, 0.78);
+  --surface-panel: rgba(255, 255, 255, 0.62);
+  --surface-flat: rgba(255, 255, 255, 0.5);
+  --hero-tint: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(6, 182, 212, 0.1));
+
+  --glass-edge: rgba(10, 40, 90, 0.08);
+  --glass-light: rgba(255, 255, 255, 0.95);
+  --shadow-hero: 0 24px 60px -24px rgba(20, 60, 140, 0.35), 0 2px 6px rgba(20, 60, 140, 0.06);
+  --shadow-panel: 0 12px 32px -16px rgba(20, 60, 140, 0.25), 0 1px 3px rgba(20, 60, 140, 0.05);
+
+  --amb-1: rgba(37, 99, 235, 0.2);
+  --amb-2: rgba(6, 182, 212, 0.18);
+  --amb-3: rgba(99, 102, 241, 0.12);
+  color: var(--fg);
 }
 
+.dark {
+  color-scheme: dark;
+  --bg: #050b1d;
+  --fg: #e9efff;
+  --fg-muted: #a5b4d0;
+  --fg-subtle: #8798b8;
+  --border: rgba(150, 180, 255, 0.14);
+  --border-strong: rgba(150, 180, 255, 0.26);
+
+  --accent: #4f8dff;
+  --accent-2: #22d3ee;
+  --on-accent: #04122b;
+  --accent-text: #7db0ff;
+  --ring: #6aa6ff;
+
+  --positive: #34d399;
+  --negative: #fb7185;
+  --warning: #fbbf24;
+  --info: #7db0ff;
+
+  --field-bg: rgba(255, 255, 255, 0.06);
+  --surface-solid: #0e1a36;
+  --surface-hero: rgba(22, 38, 78, 0.6);
+  --surface-panel: rgba(16, 28, 58, 0.55);
+  --surface-flat: rgba(255, 255, 255, 0.035);
+  --hero-tint: linear-gradient(135deg, rgba(79, 141, 255, 0.16), rgba(34, 211, 238, 0.1));
+
+  --glass-edge: rgba(0, 0, 0, 0.35);
+  --glass-light: rgba(190, 215, 255, 0.14);
+  --shadow-hero: 0 28px 70px -28px rgba(0, 0, 0, 0.7), 0 0 40px -20px rgba(34, 211, 238, 0.18);
+  --shadow-panel: 0 16px 40px -20px rgba(0, 0, 0, 0.6);
+
+  --amb-1: rgba(37, 99, 235, 0.38);
+  --amb-2: rgba(6, 182, 212, 0.24);
+  --amb-3: rgba(99, 102, 241, 0.2);
+}
+
+/* Expose tokens as Tailwind colours: bg-accent, text-fg, text-muted, border-line … */
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-fg: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-field: var(--field-bg);
+  --color-solid: var(--surface-solid);
+}
+
+/* ---------------- page background: the "something" glass blurs ---------------- */
+html {
+  background: var(--bg);
+}
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  min-height: 100vh;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss03";
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 12% -8%, var(--amb-1), transparent 60%),
+    radial-gradient(50rem 36rem at 95% 8%, var(--amb-2), transparent 60%),
+    radial-gradient(46rem 34rem at 60% 110%, var(--amb-3), transparent 60%);
+}
+
+/* Money should line up in columns */
+.num,
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Glass surfaces: three levels of importance.
+   hero  = headline numbers & key actions (strong blur, tinted, glowing)
+   panel = standard content surface
+   flat  = rows, inputs groups, nested areas (no blur, cheapest)
+------------------------------------------------------------------- */
+@layer components {
+  .glass-hero,
+  .glass-panel,
+  .glass-flat {
+    border: 1px solid var(--border);
+  }
+  .glass-hero {
+    background: var(--hero-tint), var(--surface-hero);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+    box-shadow: 0 0 0 1px var(--glass-edge), var(--shadow-hero), inset 0 1px 0 var(--glass-light);
+  }
+  .glass-panel {
+    background: var(--surface-panel);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-light);
+  }
+  /* Navigation bars float over content, so they need dependable contrast */
+  .glass-bar {
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: 0 0 0 1px var(--glass-edge), var(--shadow-hero), inset 0 1px 0 var(--glass-light);
+  }
+  .glass-flat {
+    background: var(--surface-flat);
+    box-shadow: inset 0 1px 0 var(--glass-light);
+  }
+
+  /* Temporary: pages not yet redesigned render on a light sheet so they stay
+     readable in dark mode. Remove a page's path from MIGRATED_ROUTES when done. */
+  .legacy-sheet {
+    background: rgba(250, 252, 255, 0.96);
+    color: var(--fg);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 8px 40px -12px rgba(15, 40, 100, 0.3);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+  }
+}
+
+/* Cheaper blur on small screens */
+@media (max-width: 640px) {
+  .glass-hero { -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); }
+  .glass-panel { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+}
+
+/* No blur support, or the user asked for less transparency → solid surfaces */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-hero, .glass-panel, .glass-bar, .legacy-sheet { background: var(--surface-solid); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-hero, .glass-panel, .glass-bar, .legacy-sheet {
+    background: var(--surface-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------------- overlay animations (menus, dialogs) ---------------- */
+@keyframes bw-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bw-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.bw-pop { animation: bw-pop 0.14s ease-out; }
+.bw-fade { animation: bw-fade 0.18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin { animation-duration: 1.2s !important; animation-iteration-count: infinite !important; }
 }
