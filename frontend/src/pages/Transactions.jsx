@@ -1,185 +1,219 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import TransactionForm from '../components/TransactionForm'
-import BulkEntryForm from '../components/BulkEntryForm'
-import { Alert, Field, Input, Select } from '../components/ui'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { Inbox, Layers, Plus, SearchX } from 'lucide-react'
+import { Alert, Card, EmptyState, PageHeader, Skeleton, Button } from '../components/ui'
+import Sheet from '../components/Sheet'
+import { useConfirm } from '../components/ConfirmProvider'
+import { CardError } from '../components/home/parts'
+import { readTotal } from '../components/home/data'
+import EntryForm from '../components/transactions/EntryForm'
+import BulkDialog from '../components/transactions/BulkDialog'
+import EntryList from '../components/transactions/EntryList'
+import FilterBar from '../components/transactions/FilterBar'
+import SummaryStrip from '../components/transactions/SummaryStrip'
+import { labelOf } from '../components/transactions/categoryMeta'
+import { useAsync } from '../hooks/useAsync'
+import { analysisApi } from '../api/analysis'
 import { transactionsApi } from '../api/transactions'
-import { formatDate, formatMoney, prettify } from '../utils/format'
+import { currentMonth, formatDate, formatMoney, formatMonth } from '../utils/format'
+import { cn } from '../utils/cn'
 
-const LIMIT = 10
+const LIMIT = 20
+const defaults = () => ({ month: currentMonth(), type: '', category: '' })
+const finite = (n) => (Number.isFinite(n) ? n : null)
+
+function RowsSkeleton() {
+  return (
+    <div className="divide-y divide-line" aria-busy="true" aria-label="Loading entries">
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3 sm:px-6">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="flex-1 space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-48" /></div>
+          <Skeleton className="h-5 w-20" />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function Transactions() {
-  const [options, setOptions] = useState(null)
-  const [filters, setFilters] = useState({ month: '', type: '' })
+  const confirm = useConfirm()
+  const [filters, setFilters] = useState(defaults())
   const [page, setPage] = useState(1)
-  const [data, setData] = useState({ transactions: [], pagination: { page: 1, totalPages: 0, total: 0 } })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [sheet, setSheet] = useState(null) // null | { mode: 'add' } | { mode: 'edit', tx }
+  const [dirty, setDirty] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
-  const [mode, setMode] = useState('single') // 'single' | 'bulk'
-  const [editing, setEditing] = useState(null) // transaction being edited
 
-  useEffect(() => {
-    transactionsApi.categories().then((r) => setOptions(r.data)).catch((e) => setError(e.message))
-  }, [])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const options = useAsync(() => transactionsApi.categories().then((r) => r.data), [])
+  const list = useAsync(
+    () => transactionsApi.list({ month: filters.month, type: filters.type, category: filters.category, page, limit: LIMIT }).then((r) => r.data),
+    [filters.month, filters.type, filters.category, page, refreshKey]
+  )
+  const summary = useAsync(async () => {
+    if (!filters.month) return null
     try {
-      const res = await transactionsApi.list({ ...filters, page, limit: LIMIT })
-      setData(res.data)
+      const r = await analysisApi.summary(filters.month)
+      const s = r.data?.summary ?? r.data ?? {}
+      return { income: finite(readTotal(s, ['totalIncome', 'income'])), expenses: finite(readTotal(s, ['totalExpenses', 'expenses'])) }
     } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+      if (err.status === 404) return { income: 0, expenses: 0 } // no entries that month
+      throw err
     }
-  }, [filters, page])
+  }, [filters.month, refreshKey])
 
-  useEffect(() => { load() }, [load])
+  const items = list.data?.transactions ?? []
+  const pagination = list.data?.pagination ?? { page: 1, totalPages: 1, total: 0 }
+  const isDefault = filters.month === currentMonth() && !filters.type && !filters.category
+  const hasFilter = !!(filters.type || filters.category)
 
-  const onFilter = (e) => {
+  const refresh = () => setRefreshKey((k) => k + 1)
+  const changeFilters = (patch) => {
+    setFilters((f) => ({ ...f, ...patch }))
     setPage(1)
-    setFilters((f) => ({ ...f, [e.target.name]: e.target.value }))
+  }
+  const resetFilters = () => {
+    setFilters(defaults())
+    setPage(1)
   }
 
-  const onCreated = () => (page === 1 ? load() : setPage(1))
-
-  const onEdit = (t) => {
-    setEditing(t)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-  const onEdited = () => {
-    setEditing(null)
-    load()
+  const openAdd = () => { setDirty(false); setSheet({ mode: 'add' }) }
+  const openEdit = (tx) => { setDirty(false); setSheet({ mode: 'edit', tx }) }
+  const closeSheet = () => { setSheet(null); setDirty(false) }
+  const requestCloseSheet = async () => {
+    if (dirty && !(await confirm({ title: 'Discard changes?', description: 'Your changes to this entry haven’t been saved.', confirmLabel: 'Discard', destructive: true }))) return
+    closeSheet()
   }
 
-  const onDelete = async (id) => {
-    if (!window.confirm('Delete this entry? This cannot be undone.')) return
-    setDeletingId(id)
+  const onSaved = ({ intent }) => {
+    if (page !== 1 && sheet?.mode === 'add') setPage(1)
+    refresh()
+    if (intent !== 'again') closeSheet()
+  }
+
+  const onDelete = async (t) => {
+    const ok = await confirm({
+      title: 'Delete this entry?',
+      description: `${labelOf(t.category)} · ${formatMoney(t.amount)} on ${formatDate(t.date)}. This can’t be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    setDeletingId(t.id)
     try {
-      await transactionsApi.remove(id)
-      if (editing?.id === id) setEditing(null)
-      // go back a page if we just deleted the last item on this page
-      if (data.transactions.length === 1 && page > 1) setPage(page - 1)
-      else load()
+      await transactionsApi.remove(t.id)
+      toast.success('Entry deleted')
+      if (items.length === 1 && page > 1) setPage((p) => p - 1)
+      else refresh()
     } catch (err) {
-      setError(err.message)
+      toast.error(err.message)
     } finally {
       setDeletingId(null)
     }
   }
 
-  const { transactions, pagination } = data
+  const from = pagination.total ? (pagination.page - 1) * LIMIT + 1 : 0
+  const to = Math.min(pagination.page * LIMIT, pagination.total)
+  const showSkeleton = list.loading && !list.data
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Income & Expenses</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Record your entries here. Once you have some, see your <Link to="/analysis" className="font-semibold text-blue-700">budget analysis</Link>.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Income & Expenses"
+        description="Record what you earn and spend, and keep track of where your money goes."
+        actions={
+          <>
+            <Button block={false} onClick={openAdd}><Plus className="h-4 w-4" aria-hidden /> Add entry</Button>
+            <Button block={false} variant="secondary" onClick={() => setBulkOpen(true)}><Layers className="h-4 w-4" aria-hidden /> Add several</Button>
+          </>
+        }
+      />
 
-      {editing ? (
-        <TransactionForm key={editing.id} initial={editing} options={options} onSaved={onEdited} onCancel={() => setEditing(null)} />
-      ) : (
-        <div className="space-y-4">
-          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
-            {[['single', 'Single entry'], ['bulk', 'Multiple entries']].map(([m, label]) => (
-              <button key={m} type="button" onClick={() => setMode(m)}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium ${mode === m ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {mode === 'single'
-            ? <TransactionForm options={options} onSaved={onCreated} />
-            : <BulkEntryForm options={options} onSaved={onCreated} />}
-        </div>
-      )}
+      <FilterBar filters={filters} onChange={changeFilters} options={options.data} onReset={resetFilters} isDefault={isDefault} />
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 p-5">
-          <h2 className="text-lg font-semibold text-slate-900">Your entries</h2>
-          <div className="flex gap-3">
-            <Field label="Month" htmlFor="f-month">
-              <Input id="f-month" name="month" type="month" value={filters.month} onChange={onFilter} />
-            </Field>
-            <Field label="Type" htmlFor="f-type">
-              <Select id="f-type" name="type" value={filters.type} onChange={onFilter}>
-                <option value="">All</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </Select>
-            </Field>
-          </div>
+      {filters.month && <SummaryStrip month={filters.month} data={summary.data} loading={summary.loading} error={summary.error} onRetry={summary.reload} />}
+
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5 sm:px-6">
+          <h2 className="text-base font-semibold text-fg">{filters.month ? formatMonth(filters.month) : 'All entries'}</h2>
+          {list.data && <p className="num text-sm text-muted">{pagination.total} {pagination.total === 1 ? 'entry' : 'entries'}</p>}
         </div>
 
-        {error && <div className="p-5 pb-0"><Alert>{error}</Alert></div>}
-
-        {loading ? (
-          <p className="p-8 text-center text-sm text-slate-500">Loading…</p>
-        ) : transactions.length === 0 ? (
-          <p className="p-8 text-center text-sm text-slate-500">
-            No entries found. Add your first one above.
-          </p>
+        {showSkeleton ? (
+          <RowsSkeleton />
+        ) : list.error && !list.data ? (
+          <div className="p-6"><CardError message={list.error.message} onRetry={list.reload} /></div>
+        ) : items.length === 0 ? (
+          <div className="p-5 sm:p-8">
+            {hasFilter ? (
+              <EmptyState icon={SearchX} title="No entries match these filters" action={<Button block={false} variant="secondary" onClick={resetFilters}>Reset filters</Button>}>
+                Try a different month, type or category.
+              </EmptyState>
+            ) : (
+              <EmptyState icon={Inbox} title={filters.month ? `No entries in ${formatMonth(filters.month)}` : 'No entries yet'} action={<Button block={false} onClick={openAdd}><Plus className="h-4 w-4" aria-hidden /> Add entry</Button>}>
+                Add your income and expenses to start building your picture.
+              </EmptyState>
+            )}
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Category</th>
-                  <th className="px-5 py-3 font-medium">Method</th>
-                  <th className="px-5 py-3 text-right font-medium">Amount</th>
-                  <th className="px-5 py-3"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td className="whitespace-nowrap px-5 py-3 text-slate-700">{formatDate(t.date)}</td>
-                    <td className="px-5 py-3">
-                      <span className="font-medium text-slate-900">{prettify(t.category)}</span>
-                      {t.entryType === 'monthly' && (
-                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Monthly total</span>
-                      )}
-                      {t.description && <div className="text-xs text-slate-500">{t.description}</div>}
-                    </td>
-                    <td className="px-5 py-3 text-slate-600">{t.paymentMethod ? prettify(t.paymentMethod) : '—'}</td>
-                    <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold ${t.type === 'income' ? 'text-green-700' : 'text-slate-900'}`}>
-                      {t.type === 'income' ? '+' : '−'}{formatMoney(t.amount)}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right">
-                      <button onClick={() => onEdit(t)}
-                        className="mr-4 text-sm font-medium text-blue-700 hover:text-blue-900">
-                        Edit
-                      </button>
-                      <button onClick={() => onDelete(t.id)} disabled={deletingId === t.id}
-                        className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-                        {deletingId === t.id ? 'Deleting…' : 'Delete'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {list.error && <div className="p-4"><Alert>{list.error.message}</Alert></div>}
+            <EntryList items={items} onEdit={openEdit} onDelete={onDelete} deletingId={deletingId} busy={list.loading} />
+          </>
         )}
 
         {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm text-slate-600">
-            <span>Page {pagination.page} of {pagination.totalPages} · {pagination.total} entries</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 text-sm text-muted sm:px-6">
+            <span className="num">Showing {from}–{to} of {pagination.total}</span>
             <div className="flex gap-2">
-              <button onClick={() => setPage((p) => p - 1)} disabled={page <= 1}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40">Previous</button>
-              <button onClick={() => setPage((p) => p + 1)} disabled={page >= pagination.totalPages}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40">Next</button>
+              <Button block={false} variant="secondary" onClick={() => setPage((p) => p - 1)} disabled={page <= 1}>Previous</Button>
+              <Button block={false} variant="secondary" onClick={() => setPage((p) => p + 1)} disabled={page >= pagination.totalPages}>Next</Button>
             </div>
           </div>
         )}
-      </section>
+      </Card>
+
+      {/* Add / edit panel */}
+      <Sheet
+        open={!!sheet}
+        onOpenChange={(o) => !o && requestCloseSheet()}
+        title={sheet?.mode === 'edit' ? 'Edit entry' : 'Add entry'}
+        description={sheet?.mode === 'edit' ? `${labelOf(sheet.tx.category)} · ${formatDate(sheet.tx.date)}` : 'Record income or an expense.'}
+        onOpenAutoFocus={(e) => {
+          // focus the amount on desktop; on touch screens it would pop the keyboard over the category chips
+          if (sheet?.mode === 'add' && !window.matchMedia('(pointer: coarse)').matches) {
+            e.preventDefault()
+            document.getElementById('entry-amount')?.focus()
+          }
+        }}
+      >
+        {sheet && (
+          <EntryForm
+            key={sheet.mode === 'edit' ? sheet.tx.id : 'new'}
+            initial={sheet.mode === 'edit' ? sheet.tx : undefined}
+            options={options.data}
+            onSaved={onSaved}
+            onCancel={requestCloseSheet}
+            onDirtyChange={setDirty}
+          />
+        )}
+      </Sheet>
+
+      <BulkDialog open={bulkOpen} onOpenChange={setBulkOpen} options={options.data} onSaved={() => { if (page !== 1) setPage(1); refresh() }} />
+
+      {/* Quick add on phones, where the header button scrolls out of view */}
+      <button
+        type="button"
+        onClick={openAdd}
+        aria-label="Add entry"
+        className={cn(
+          'fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full lg:hidden',
+          'bg-linear-to-br from-accent to-accent-2 text-accent-fg shadow-[0_10px_25px_-8px_var(--accent)]'
+        )}
+      >
+        <Plus className="h-6 w-6" aria-hidden />
+      </button>
     </div>
   )
 }

@@ -222,6 +222,14 @@ table {
 .bw-pop { animation: bw-pop 0.14s ease-out; }
 .bw-fade { animation: bw-fade 0.18s ease-out; }
 
+/* Slide-over sheet: slides up on phones, in from the right on larger screens */
+@keyframes bw-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes bw-sheet-right { from { transform: translateX(100%); } to { transform: none; } }
+.bw-sheet { animation: bw-sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+@media (min-width: 640px) {
+  .bw-sheet { animation-name: bw-sheet-right; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
