@@ -1,276 +1,413 @@
-import { useEffect, useState } from 'react'
+// import { useEffect, useState } from 'react'
+// import { Link } from 'react-router-dom'
+// import { Alert, Button, Field, Input } from '../components/ui'
+// import { analysisApi } from '../api/analysis'
+// import { fmtCount, isCountKey, toText } from '../utils/text'
+// import { currentMonth, formatMonth, formatMoney, prettify } from '../utils/format'
+
+// /* ---------- generic, defensive rendering of the backend summary ---------- */
+
+// const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v)
+// const isPercentKey = (k) => /pct|percent|rate|share/i.test(k)
+// // ctx = the name of the table/group the value sits in (e.g. "entryCounts"), so rows like
+// // { name: 'daily', value: 1 } inside a count table are not shown as money.
+// const fmtValue = (k, v, ctx = '') => {
+//   if (typeof v !== 'number') return String(v ?? '—')
+//   if (isCountKey(k) || isCountKey(ctx)) return fmtCount(v)
+//   if (isPercentKey(k)) return `${Math.round(v * 100) / 100}%`
+//   return formatMoney(v)
+// }
+
+// // Turn an array/object value into table rows: [{ name, ...scalars }]
+// function toRows(value) {
+//   const rows = Array.isArray(value)
+//     ? value
+//     : Object.entries(value).map(([name, v]) => (isPlainObject(v) ? { name, ...v } : { name, value: v }))
+//   return rows.filter(isPlainObject)
+// }
+
+// function DataTable({ title, value }) {
+//   const rows = toRows(value)
+//   if (!rows.length) return null
+//   const cols = Object.keys(rows[0]).filter((k) => typeof rows[0][k] !== 'object')
+//   return (
+//     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+//       <h3 className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-900">{prettify(title)}</h3>
+//       <div className="overflow-x-auto">
+//         <table className="w-full text-left text-sm">
+//           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+//             <tr>{cols.map((c) => <th key={c} className="px-5 py-2.5 font-medium">{prettify(c)}</th>)}</tr>
+//           </thead>
+//           <tbody className="divide-y divide-slate-100">
+//             {rows.map((r, i) => (
+//               <tr key={i}>
+//                 {cols.map((c, j) => (
+//                   <td key={c} className={`px-5 py-2.5 ${j === 0 ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
+//                     {j === 0 && typeof r[c] === 'string' ? prettify(r[c]) : fmtValue(c, r[c], title)}
+//                   </td>
+//                 ))}
+//               </tr>
+//             ))}
+//           </tbody>
+//         </table>
+//       </div>
+//     </div>
+//   )
+// }
+
+// function Stat({ label, value, tone }) {
+//   return (
+//     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+//       <p className="text-sm text-slate-500">{label}</p>
+//       <p className={`mt-1 text-xl font-semibold ${tone || 'text-slate-900'}`}>{value}</p>
+//     </div>
+//   )
+// }
+
+// function SummaryView({ summary }) {
+//   const { totalIncome, totalExpenses } = summary
+//   const hasTotals = typeof totalIncome === 'number' && typeof totalExpenses === 'number'
+//   const net = hasTotals ? totalIncome - totalExpenses : null
+//   const skip = ['month', 'totalIncome', 'totalExpenses']
+
+//   const rest = Object.entries(summary).filter(([k]) => !skip.includes(k))
+//   const scalars = rest.filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+//   const nested = rest.filter(([, v]) => v && typeof v === 'object')
+
+//   return (
+//     <div className="space-y-4">
+//       {hasTotals && (
+//         <div className="grid gap-4 sm:grid-cols-3">
+//           <Stat label="Total income" value={formatMoney(totalIncome)} tone="text-green-700" />
+//           <Stat label="Total expenses" value={formatMoney(totalExpenses)} />
+//           <Stat label={net >= 0 ? 'Left over' : 'Overspent by'} value={formatMoney(Math.abs(net))}
+//             tone={net >= 0 ? 'text-slate-900' : 'text-red-700'} />
+//         </div>
+//       )}
+//       {scalars.length > 0 && (
+//         <div className="grid gap-4 sm:grid-cols-3">
+//           {scalars.map(([k, v]) => <Stat key={k} label={prettify(k)} value={fmtValue(k, v)} />)}
+//         </div>
+//       )}
+//       {nested.map(([k, v]) => <DataTable key={k} title={k} value={v} />)}
+//     </div>
+//   )
+// }
+
+// /* ---------- AI analysis ---------- */
+
+// const ratingStyle = {
+//   excellent: 'bg-green-50 text-green-800 border-green-200',
+//   good: 'bg-blue-50 text-blue-800 border-blue-200',
+//   fair: 'bg-amber-50 text-amber-800 border-amber-200',
+//   needs_attention: 'bg-red-50 text-red-800 border-red-200',
+// }
+
+// function Bullets({ title, items }) {
+//   if (!Array.isArray(items) || !items.length) return null
+//   return (
+//     <div>
+//       <h4 className="font-semibold text-slate-900">{title}</h4>
+//       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-slate-700">
+//         {items.map((t, i) => <li key={i}>{toText(t)}</li>)}
+//       </ul>
+//     </div>
+//   )
+// }
+
+// function AiView({ analysis }) {
+//   if (analysis?.raw) {
+//     // Backend couldn't parse the model's JSON, so show the text as-is
+//     return <p className="whitespace-pre-wrap text-sm text-slate-700">{toText(analysis.raw)}</p>
+//   }
+//   const h = analysis?.financialHealth
+//   const over = Array.isArray(analysis?.overspendingAreas) ? analysis.overspendingAreas : []
+//   return (
+//     <div className="space-y-6">
+//       {analysis?.overview && <p className="text-slate-700">{toText(analysis.overview)}</p>}
+
+//       {h && (
+//         <div className={`rounded-lg border p-4 ${ratingStyle[h.rating] || 'border-slate-200 bg-slate-50 text-slate-800'}`}>
+//           <p className="text-sm font-semibold">Financial health: {prettify(toText(h.rating) || 'unknown')}</p>
+//           {h.reason && <p className="mt-1 text-sm">{toText(h.reason)}</p>}
+//         </div>
+//       )}
+
+//       <Bullets title="Key insights" items={analysis?.keyInsights} />
+
+//       {over.length > 0 && (
+//         <div>
+//           <h4 className="font-semibold text-slate-900">Areas to watch</h4>
+//           <ul className="mt-2 space-y-2 text-sm text-slate-700">
+//             {over.map((o, i) => (
+//               <li key={i} className="rounded-lg border border-slate-200 p-3">
+//                 <span className="font-medium text-slate-900">{prettify(o.category || 'Category')}</span>
+//                 {o.observation && <span> — {toText(o.observation)}</span>}
+//               </li>
+//             ))}
+//           </ul>
+//         </div>
+//       )}
+
+//       <Bullets title="Suggestions" items={analysis?.suggestions} />
+
+//       {analysis?.savingsTip && (
+//         <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
+//           <span className="font-semibold text-slate-900">Savings tip: </span>{toText(analysis.savingsTip)}
+//         </div>
+//       )}
+//     </div>
+//   )
+// }
+
+// /* ---------- page ---------- */
+
+// export default function Analysis() {
+//   const [month, setMonth] = useState(currentMonth())
+//   const [summary, setSummary] = useState(null)
+//   const [empty, setEmpty] = useState(false) // 404: no transactions that month
+//   const [loading, setLoading] = useState(true)
+//   const [error, setError] = useState('')
+
+//   const [ai, setAi] = useState(null)
+//   const [aiLoading, setAiLoading] = useState(false)
+//   const [aiError, setAiError] = useState('')
+
+//   useEffect(() => {
+//     if (!month) return
+//     let active = true
+//     setLoading(true)
+//     setError('')
+//     setEmpty(false)
+//     setSummary(null)
+//     setAi(null)
+//     setAiError('')
+//     analysisApi
+//       .summary(month)
+//       .then((res) => active && setSummary(res.data.summary ?? res.data))
+//       .catch((err) => {
+//         if (!active) return
+//         if (err.status === 404) setEmpty(true)
+//         else setError(err.message)
+//       })
+//       .finally(() => active && setLoading(false))
+//     return () => { active = false }
+//   }, [month])
+
+//   const generate = async () => {
+//     setAiLoading(true)
+//     setAiError('')
+//     try {
+//       const res = await analysisApi.spending(month)
+//       setAi(res.data)
+//     } catch (err) {
+//       setAiError(
+//         err.status === 429
+//           ? 'You’ve reached the hourly limit for AI analysis. Please try again later.'
+//           : err.status === 404
+//           ? 'There are no entries for this month yet.'
+//           : err.status >= 500
+//           ? 'The AI service is temporarily unavailable. Please try again in a moment.'
+//           : err.message
+//       )
+//     } finally {
+//       setAiLoading(false)
+//     }
+//   }
+
+//   return (
+//     <div className="space-y-6">
+//       <div className="flex flex-wrap items-end justify-between gap-4">
+//         <div>
+//           <h1 className="text-2xl font-semibold text-slate-900">Budget analysis</h1>
+//           <p className="mt-1 text-sm text-slate-600">{month ? formatMonth(month) : 'Select a month'}</p>
+//         </div>
+//         <div className="w-48">
+//           <Field label="Month" htmlFor="month">
+//             <Input id="month" type="month" max={currentMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+//           </Field>
+//         </div>
+//       </div>
+
+//       {error && <Alert>{error}</Alert>}
+
+//       {loading ? (
+//         <p className="py-10 text-center text-sm text-slate-500">Loading summary…</p>
+//       ) : empty ? (
+//         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+//           <p className="font-medium text-slate-900">No entries for this month</p>
+//           <p className="mt-1 text-sm text-slate-600">Add some income and expenses to see your analysis.</p>
+//           <Link to="/transactions" className="mt-4 inline-block text-sm font-semibold text-blue-700">
+//             Add entries →
+//           </Link>
+//         </div>
+//       ) : summary ? (
+//         <>
+//           <SummaryView summary={summary} />
+
+//           <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+//             <div className="flex flex-wrap items-start justify-between gap-4">
+//               <div>
+//                 <h2 className="text-lg font-semibold text-slate-900">AI spending guidance</h2>
+//                 <p className="mt-1 text-sm text-slate-600">
+//                   Based on your totals and categories for this month, compared with the previous month where available.
+//                 </p>
+//               </div>
+//               <div className="w-full sm:w-48">
+//                 <Button onClick={generate} loading={aiLoading}>
+//                   {ai ? 'Regenerate' : 'Generate insights'}
+//                 </Button>
+//               </div>
+//             </div>
+
+//             {aiError && <div className="mt-4"><Alert>{aiError}</Alert></div>}
+
+//             {ai && (
+//               <div className="mt-6 border-t border-slate-100 pt-6">
+//                 <AiView analysis={ai.analysis} />
+//                 <p className="mt-6 text-xs text-slate-500">
+//                   Generated by AI from your recorded figures for general information only. It is not financial advice.
+//                 </p>
+//               </div>
+//             )}
+//           </section>
+//         </>
+//       ) : null}
+//     </div>
+//   )
+// }
+
+
+
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Alert, Button, Field, Input } from '../components/ui'
+import { Plus } from 'lucide-react'
+import { Alert, Card, EmptyState, PageHeader, Skeleton, buttonClass } from '../components/ui'
+import MonthStepper, { shiftMonth } from '../components/MonthStepper'
+import { CardError } from '../components/home/parts'
+import AnalysisHero from '../components/analysis/HeroCard'
+import ComparisonCard from '../components/analysis/ComparisonCard'
+import CategoryCard from '../components/analysis/CategoryCard'
+import { LargestCard, PaymentsCard, SourcesCard } from '../components/analysis/BreakdownCards'
+import MoreDetails from '../components/analysis/MoreDetails'
+import AiGuidance from '../components/analysis/AiGuidance'
+import { compare, readSummary } from '../components/analysis/normalize'
+import { useAsync } from '../hooks/useAsync'
 import { analysisApi } from '../api/analysis'
-import { fmtCount, isCountKey, toText } from '../utils/text'
-import { currentMonth, formatMonth, formatMoney, prettify } from '../utils/format'
+import { currentMonth, formatMonth } from '../utils/format'
+import { cn } from '../utils/cn'
 
-/* ---------- generic, defensive rendering of the backend summary ---------- */
-
-const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v)
-const isPercentKey = (k) => /pct|percent|rate|share/i.test(k)
-// ctx = the name of the table/group the value sits in (e.g. "entryCounts"), so rows like
-// { name: 'daily', value: 1 } inside a count table are not shown as money.
-const fmtValue = (k, v, ctx = '') => {
-  if (typeof v !== 'number') return String(v ?? '—')
-  if (isCountKey(k) || isCountKey(ctx)) return fmtCount(v)
-  if (isPercentKey(k)) return `${Math.round(v * 100) / 100}%`
-  return formatMoney(v)
-}
-
-// Turn an array/object value into table rows: [{ name, ...scalars }]
-function toRows(value) {
-  const rows = Array.isArray(value)
-    ? value
-    : Object.entries(value).map(([name, v]) => (isPlainObject(v) ? { name, ...v } : { name, value: v }))
-  return rows.filter(isPlainObject)
-}
-
-function DataTable({ title, value }) {
-  const rows = toRows(value)
-  if (!rows.length) return null
-  const cols = Object.keys(rows[0]).filter((k) => typeof rows[0][k] !== 'object')
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <h3 className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-900">{prettify(title)}</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr>{cols.map((c) => <th key={c} className="px-5 py-2.5 font-medium">{prettify(c)}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r, i) => (
-              <tr key={i}>
-                {cols.map((c, j) => (
-                  <td key={c} className={`px-5 py-2.5 ${j === 0 ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
-                    {j === 0 && typeof r[c] === 'string' ? prettify(r[c]) : fmtValue(c, r[c], title)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-function Stat({ label, value, tone }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${tone || 'text-slate-900'}`}>{value}</p>
-    </div>
-  )
-}
-
-function SummaryView({ summary }) {
-  const { totalIncome, totalExpenses } = summary
-  const hasTotals = typeof totalIncome === 'number' && typeof totalExpenses === 'number'
-  const net = hasTotals ? totalIncome - totalExpenses : null
-  const skip = ['month', 'totalIncome', 'totalExpenses']
-
-  const rest = Object.entries(summary).filter(([k]) => !skip.includes(k))
-  const scalars = rest.filter(([, v]) => typeof v === 'number' || typeof v === 'string')
-  const nested = rest.filter(([, v]) => v && typeof v === 'object')
-
-  return (
-    <div className="space-y-4">
-      {hasTotals && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Stat label="Total income" value={formatMoney(totalIncome)} tone="text-green-700" />
-          <Stat label="Total expenses" value={formatMoney(totalExpenses)} />
-          <Stat label={net >= 0 ? 'Left over' : 'Overspent by'} value={formatMoney(Math.abs(net))}
-            tone={net >= 0 ? 'text-slate-900' : 'text-red-700'} />
-        </div>
-      )}
-      {scalars.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {scalars.map(([k, v]) => <Stat key={k} label={prettify(k)} value={fmtValue(k, v)} />)}
-        </div>
-      )}
-      {nested.map(([k, v]) => <DataTable key={k} title={k} value={v} />)}
-    </div>
-  )
-}
-
-/* ---------- AI analysis ---------- */
-
-const ratingStyle = {
-  excellent: 'bg-green-50 text-green-800 border-green-200',
-  good: 'bg-blue-50 text-blue-800 border-blue-200',
-  fair: 'bg-amber-50 text-amber-800 border-amber-200',
-  needs_attention: 'bg-red-50 text-red-800 border-red-200',
-}
-
-function Bullets({ title, items }) {
-  if (!Array.isArray(items) || !items.length) return null
-  return (
-    <div>
-      <h4 className="font-semibold text-slate-900">{title}</h4>
-      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-slate-700">
-        {items.map((t, i) => <li key={i}>{toText(t)}</li>)}
-      </ul>
-    </div>
-  )
-}
-
-function AiView({ analysis }) {
-  if (analysis?.raw) {
-    // Backend couldn't parse the model's JSON, so show the text as-is
-    return <p className="whitespace-pre-wrap text-sm text-slate-700">{toText(analysis.raw)}</p>
+// 404 means "no entries that month": a normal result, not a failure.
+async function loadSummary(month) {
+  try {
+    const res = await analysisApi.summary(month)
+    return { status: 'ok', model: readSummary(res.data?.summary ?? res.data ?? {}) }
+  } catch (err) {
+    if (err.status === 404) return { status: 'empty' }
+    throw err
   }
-  const h = analysis?.financialHealth
-  const over = Array.isArray(analysis?.overspendingAreas) ? analysis.overspendingAreas : []
+}
+
+function aiMessage(err) {
+  if (err.status === 429) return 'You’ve reached the hourly limit for AI guidance. Please try again later.'
+  if (err.status === 404) return 'There are no entries for this month yet.'
+  if (err.status >= 500) return 'The AI service is temporarily unavailable. Please try again in a moment.'
+  return err.message
+}
+
+function PageSkeleton() {
   return (
-    <div className="space-y-6">
-      {analysis?.overview && <p className="text-slate-700">{toText(analysis.overview)}</p>}
-
-      {h && (
-        <div className={`rounded-lg border p-4 ${ratingStyle[h.rating] || 'border-slate-200 bg-slate-50 text-slate-800'}`}>
-          <p className="text-sm font-semibold">Financial health: {prettify(toText(h.rating) || 'unknown')}</p>
-          {h.reason && <p className="mt-1 text-sm">{toText(h.reason)}</p>}
-        </div>
-      )}
-
-      <Bullets title="Key insights" items={analysis?.keyInsights} />
-
-      {over.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-slate-900">Areas to watch</h4>
-          <ul className="mt-2 space-y-2 text-sm text-slate-700">
-            {over.map((o, i) => (
-              <li key={i} className="rounded-lg border border-slate-200 p-3">
-                <span className="font-medium text-slate-900">{prettify(o.category || 'Category')}</span>
-                {o.observation && <span> — {toText(o.observation)}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <Bullets title="Suggestions" items={analysis?.suggestions} />
-
-      {analysis?.savingsTip && (
-        <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
-          <span className="font-semibold text-slate-900">Savings tip: </span>{toText(analysis.savingsTip)}
-        </div>
-      )}
+    <div className="grid gap-4 lg:grid-cols-12" aria-busy="true" aria-label="Loading analysis">
+      <Card variant="hero" className="space-y-4 p-8 lg:col-span-8"><Skeleton className="h-36 w-full" /><Skeleton className="h-12 w-full" /></Card>
+      <Card className="space-y-3 p-6 lg:col-span-4"><Skeleton className="h-5 w-32" /><Skeleton className="h-24 w-full" /></Card>
+      <Card className="space-y-3 p-6 lg:col-span-12"><Skeleton className="h-5 w-40" /><Skeleton className="h-48 w-full" /></Card>
     </div>
   )
 }
-
-/* ---------- page ---------- */
 
 export default function Analysis() {
   const [month, setMonth] = useState(currentMonth())
-  const [summary, setSummary] = useState(null)
-  const [empty, setEmpty] = useState(false) // 404: no transactions that month
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [reload, setReload] = useState(0)
+  const prevMonth = shiftMonth(month, -1)
 
-  const [ai, setAi] = useState(null)
-  const [aiLoading, setAiLoading] = useState(false)
+  const cur = useAsync(() => loadSummary(month), [month, reload])
+  // last month only powers the comparison; if it fails the rest of the page is unaffected
+  const prev = useAsync(() => loadSummary(prevMonth).catch(() => ({ status: 'error' })), [month, reload])
+
+  // AI results are kept per month in memory only (never stored), so switching months doesn't spend the hourly limit again
+  const [ai, setAi] = useState({})
+  const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  useEffect(() => {
-    if (!month) return
-    let active = true
-    setLoading(true)
-    setError('')
-    setEmpty(false)
-    setSummary(null)
-    setAi(null)
-    setAiError('')
-    analysisApi
-      .summary(month)
-      .then((res) => active && setSummary(res.data.summary ?? res.data))
-      .catch((err) => {
-        if (!active) return
-        if (err.status === 404) setEmpty(true)
-        else setError(err.message)
-      })
-      .finally(() => active && setLoading(false))
-    return () => { active = false }
-  }, [month])
-
   const generate = async () => {
-    setAiLoading(true)
+    setAiBusy(true)
     setAiError('')
     try {
       const res = await analysisApi.spending(month)
-      setAi(res.data)
+      setAi((a) => ({ ...a, [month]: { data: res.data, at: Date.now() } }))
     } catch (err) {
-      setAiError(
-        err.status === 429
-          ? 'You’ve reached the hourly limit for AI analysis. Please try again later.'
-          : err.status === 404
-          ? 'There are no entries for this month yet.'
-          : err.status >= 500
-          ? 'The AI service is temporarily unavailable. Please try again in a moment.'
-          : err.message
-      )
+      setAiError(aiMessage(err))
     } finally {
-      setAiLoading(false)
+      setAiBusy(false)
     }
   }
+  const changeMonth = (m) => { setMonth(m); setAiError('') }
+
+  const ok = cur.data?.status === 'ok' && !cur.loading
+  const model = ok ? cur.data.model : null
+  const cmp = ok && prev.data?.status === 'ok' ? compare(model, prev.data.model) : null
+  const prevStatus = prev.loading ? 'loading' : prev.data?.status === 'ok' ? 'ok' : prev.data?.status || 'error'
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Budget analysis</h1>
-          <p className="mt-1 text-sm text-slate-600">{month ? formatMonth(month) : 'Select a month'}</p>
-        </div>
-        <div className="w-48">
-          <Field label="Month" htmlFor="month">
-            <Input id="month" type="month" max={currentMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
-          </Field>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Budget analysis"
+        description="See where your money went and how this month compares."
+        actions={<MonthStepper month={month} onChange={changeMonth} />}
+      />
 
-      {error && <Alert>{error}</Alert>}
-
-      {loading ? (
-        <p className="py-10 text-center text-sm text-slate-500">Loading summary…</p>
-      ) : empty ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-          <p className="font-medium text-slate-900">No entries for this month</p>
-          <p className="mt-1 text-sm text-slate-600">Add some income and expenses to see your analysis.</p>
-          <Link to="/transactions" className="mt-4 inline-block text-sm font-semibold text-blue-700">
-            Add entries →
-          </Link>
-        </div>
-      ) : summary ? (
+      {cur.loading ? (
+        <PageSkeleton />
+      ) : cur.error ? (
+        <Card className="p-6"><CardError message={cur.error.message} onRetry={() => setReload((r) => r + 1)} /></Card>
+      ) : cur.data?.status === 'empty' ? (
+        <Card className="p-5 sm:p-8">
+          <EmptyState icon={Plus} title={`No entries for ${formatMonth(month)}`}
+            action={<Link to="/transactions" className={buttonClass()}><Plus className="h-4 w-4" aria-hidden /> Add entries</Link>}>
+            Add your income and expenses for this month to see your analysis.
+          </EmptyState>
+        </Card>
+      ) : model ? (
         <>
-          <SummaryView summary={summary} />
+          {model.notes.length > 0 && (
+            <Alert type="info">
+              {model.notes.length === 1 ? model.notes[0] : <ul className="list-disc space-y-1 pl-5">{model.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+            </Alert>
+          )}
 
-          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">AI spending guidance</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Based on your totals and categories for this month, compared with the previous month where available.
-                </p>
-              </div>
-              <div className="w-full sm:w-48">
-                <Button onClick={generate} loading={aiLoading}>
-                  {ai ? 'Regenerate' : 'Generate insights'}
-                </Button>
-              </div>
-            </div>
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="lg:col-span-8"><AnalysisHero model={model} /></div>
+            <div className="lg:col-span-4"><ComparisonCard month={month} prevMonth={prevMonth} status={prevStatus} cmp={cmp} cur={model} /></div>
 
-            {aiError && <div className="mt-4"><Alert>{aiError}</Alert></div>}
-
-            {ai && (
-              <div className="mt-6 border-t border-slate-100 pt-6">
-                <AiView analysis={ai.analysis} />
-                <p className="mt-6 text-xs text-slate-500">
-                  Generated by AI from your recorded figures for general information only. It is not financial advice.
-                </p>
+            {model.categories.length > 0 && (
+              <div className={cn(model.sources.length ? 'lg:col-span-8' : 'lg:col-span-12')}>
+                <CategoryCard categories={model.categories} total={model.expenses} cmp={cmp} />
               </div>
             )}
-          </section>
+            {model.sources.length > 0 && (
+              <div className={cn(model.categories.length ? 'lg:col-span-4' : 'lg:col-span-12')}><SourcesCard rows={model.sources} /></div>
+            )}
+
+            {model.largest.length > 0 && (
+              <div className={cn(model.payments.length ? 'lg:col-span-6' : 'lg:col-span-12')}><LargestCard rows={model.largest} /></div>
+            )}
+            {model.payments.length > 0 && (
+              <div className={cn(model.largest.length ? 'lg:col-span-6' : 'lg:col-span-12')}><PaymentsCard rows={model.payments} /></div>
+            )}
+          </div>
+
+          <MoreDetails data={model.leftovers} />
+          <AiGuidance month={month} entry={ai[month]} busy={aiBusy} error={aiError} onGenerate={generate} />
         </>
       ) : null}
     </div>

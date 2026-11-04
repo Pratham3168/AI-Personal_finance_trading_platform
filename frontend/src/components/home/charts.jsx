@@ -4,16 +4,12 @@ import { useReducedMotion } from 'motion/react'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { TrendingUp } from 'lucide-react'
 import { EmptyState, buttonClass } from '../ui'
-import { useTheme } from '../../context/ThemeContext'
+import { usePalette } from './palette'
 import { formatMoney, formatMonth } from '../../utils/format'
 import { formatCompact } from './data'
 import { CardError } from './parts'
 
-const PALETTE = {
-  light: { income: '#047857', expense: '#1d4ed8', axis: '#5f7391', grid: 'rgba(10,40,90,0.10)', donut: ['#1d4ed8', '#0e7490', '#6366f1', '#0d9488', '#8b5cf6', '#94a3b8'] },
-  dark: { income: '#34d399', expense: '#4f8dff', axis: '#8798b8', grid: 'rgba(150,180,255,0.14)', donut: ['#4f8dff', '#22d3ee', '#818cf8', '#2dd4bf', '#a78bfa', '#64748b'] },
-}
-const usePalette = () => PALETTE[useTheme().resolved === 'dark' ? 'dark' : 'light']
+
 
 function Tip({ children }) {
   return <div className="glass-hero rounded-xl px-3 py-2 text-xs text-fg">{children}</div>
@@ -132,6 +128,38 @@ export function AllocationDonut({ holdings }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/* ---------------- generic donut (used by Budget analysis) ---------------- */
+export function DonutChart({ slices, centerLabel, centerValue, ariaLabel }) {
+  const c = usePalette()
+  const reduced = useReducedMotion()
+  const total = slices.reduce((sum, x) => sum + x.value, 0)
+  return (
+    <div className="relative mx-auto h-48 w-48" role="img" aria-label={ariaLabel}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={slices} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={slices.length > 1 ? 2 : 0} stroke="none" isAnimationActive={!reduced}>
+            {slices.map((s, i) => <Cell key={s.name} fill={c.donut[i % c.donut.length]} />)}
+          </Pie>
+          <Tooltip
+            content={({ active, payload }) =>
+              active && payload?.length ? (
+                <Tip>
+                  <p className="font-medium">{payload[0].name}</p>
+                  <p className="num">{formatMoney(payload[0].value)} · {Math.round((payload[0].value / total) * 1000) / 10}%</p>
+                </Tip>
+              ) : null
+            }
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-xs text-subtle">{centerLabel}</span>
+        <span className="num text-base font-semibold text-fg">{centerValue}</span>
+      </div>
     </div>
   )
 }
